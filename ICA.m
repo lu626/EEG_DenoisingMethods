@@ -11,7 +11,7 @@ MSE_results = zeros(length(noise_amplitudes), length(channel_numbers));
 NCC_results = zeros(length(noise_amplitudes), length(channel_numbers));
 
 % 优化ICA参数
-max_iterations = 100;  % 限制最大迭代次数
+max_iterations = 500;  % 限制最大迭代次数
 epsilon = 1e-3;        % 收敛阈值
 
 % 循环不同通道数量
