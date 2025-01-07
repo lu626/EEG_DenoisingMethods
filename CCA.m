@@ -12,47 +12,44 @@ SNR_results = zeros(length(noise_amplitudes), length(channel_numbers));
 MSE_results = zeros(length(noise_amplitudes), length(channel_numbers));
 NCC_results = zeros(length(noise_amplitudes), length(channel_numbers));
 
-% 定义CCA降噪函数
+% 定义改进后的 CCA 降噪函数
 function clean_data = cca_denoise(noisy_data)
     [N, T] = size(noisy_data);  % N 为通道数，T 为时间点数
-
+    
+    % 数据中心化：每个通道的均值减去
+    noisy_data_centered = noisy_data - mean(noisy_data, 2);
+    
     % 如果只有一个通道，直接返回
     if N == 1
         clean_data = noisy_data;
         return;
     end
-
+    
     % 计算协方差矩阵
-    X = noisy_data;  % 对于 CCA，通常直接用原始数据矩阵
-    R = X * X' / T;  % 自协方差矩阵
+    R = cov(noisy_data_centered');  % 使用内置的cov函数来计算协方差矩阵，行是通道数，列是时间点数
     
-    % 确保矩阵可逆，避免秩不足
-    if rank(R) < N
-        % 如果矩阵秩不足，返回未经处理的信号
-        disp('Warning: Matrix rank is insufficient for CCA. Returning noisy signal.');
-        clean_data = noisy_data;
-        return;
-    end
+    % 正则化协方差矩阵，确保其可逆
+    epsilon = 1e-6;  % 正则化参数
+    R = R + epsilon * eye(N);  % 对协方差矩阵进行正则化，避免秩不足问题
     
-    % 对自协方差矩阵进行特征值分解
-    [E, D] = eig(R);
-    [d, ind] = sort(diag(D), 'descend');
-    E = E(:, ind);
+    % 对协方差矩阵进行奇异值分解（SVD）
+    [U, S, V] = svd(R);  % SVD分解
+    singular_values = diag(S);  % 获取奇异值
     
-    % 选择主要成分
-    threshold = 0.1 * max(d); % 设置阈值
-    num_components = sum(d > threshold);
-    num_components = max(1, min(num_components, floor(N/2))); % 确保组件数量合理
+    % 选择主要成分，保留前面几个最大的奇异值
+    threshold = 0.1 * max(singular_values);  % 设置阈值，保留大于阈值的成分
+    num_components = sum(singular_values > threshold);  % 根据阈值选择主成分的数量
+    num_components = max(1, min(num_components, floor(N/2)));  % 确保选择的成分数量合理
     
-    % 投影矩阵
-    W = E(:, 1:num_components);
+    % 投影矩阵：选取最重要的成分
+    W = U(:, 1:num_components);  % 选取奇异值大的成分
     
     % 重构信号
-    Y = W' * X;
-    X_clean = W * Y;
+    Y = W' * noisy_data_centered;  % 投影数据到新的子空间
+    X_clean = W * Y;  % 从降维后的数据重构信号
     
-    % 返回降噪信号
-    clean_data = X_clean;
+    % 将数据反中心化，恢复原始数据的均值
+    clean_data = X_clean + mean(noisy_data, 2);
 end
 
 % 主循环处理
@@ -73,7 +70,7 @@ for c = 1:length(channel_numbers)
         % 添加噪声
         noisy_eeg_multichannel = eeg_data_multichannel + noise_amplitude * randn(size(eeg_data_multichannel));
         
-        % 应用CCA降噪
+        % 应用改进后的CCA降噪
         clean_eeg_multichannel = cca_denoise(noisy_eeg_multichannel);
         
         % 计算评价指标
@@ -122,6 +119,7 @@ colorbar;
 subplot(3, 1, 3); % 第三行
 heatmap(channel_numbers, noise_amplitudes, NCC_results);
 title('NCC Heatmap');
+xlabel('Channel Counts');
 ylabel('Noise Amplitude');
 colorbar;
 
@@ -146,23 +144,28 @@ clean_eeg_multichannel_best = cca_denoise(noisy_eeg_multichannel_best);
 % 绘制结果
 figure;
 
+% 原始信号图
+subplot(3, 1, 1);
+plot(eeg_data_multichannel_best(1, :));
+title('Original Signal');
+ylabel('Amplitude');
 
+% 加噪信号图
+subplot(3, 1, 2);
+plot(noisy_eeg_multichannel_best(1, :));
+title('Noisy Signal (Amplitude 50)');
+ylabel('Amplitude');
+
+% 经过CCA降噪后的信号图
 subplot(3, 1, 3);
 plot(clean_eeg_multichannel_best(1, :));
-ylabel('CCA');
-
-
-
-
-
-
+title('Denoised Signal (CCA)');
+ylabel('Amplitude');
 
 % 计算并显示最终结果
 signal_best = eeg_data_multichannel_best(1, :);
 noisy_signal_best = noisy_eeg_multichannel_best(1, :);
 denoised_signal_best = clean_eeg_multichannel_best(1, :);
-
-
 
 % 最终SNR
 noise_signal_best = noisy_signal_best - signal_best;
