@@ -1,2 +1,2 @@
 The dataset we selected is EEGdenoiseNet, because it contains 4514 lines of clean EEG signals as a reference, allowing us to add corresponding noise to test the noise reduction effects of different methods. This is especially beneficial for deep learning methods that require clean EEG as labels. The dataset is available at https://github.com/ncclabstech/EEGdenoiseNet. The codes of a total of fifteen different noise reduction methods are in the library. We are constantly trying to improve the codes to make each noise reduction method show the best noise reduction effect as much as possible.
-111111111111111111111111111111111111111111111111111111111
+
