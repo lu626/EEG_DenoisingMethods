@@ -83,32 +83,29 @@ for c = 1:length(channel_numbers)
         end
     end
 end
-
-% 创建一个新的图形并缩小窗口
-figure('Position', [200, 200, 600, 600]);  % 修改图形窗口大小
+% 创建一个新的图形
+figure;
 
 % 绘制 SNR 热图
 subplot(3, 1, 1); % 第一行
-h1 = heatmap(channel_numbers, noise_amplitudes, SNR_results);
-h1.Title = 'SNR Heatmap';
-h1.YLabel = 'Noise Amplitude';
-h1.CellLabelColor = 'none';  % 禁用数字显示
+heatmap(channel_numbers, noise_amplitudes, SNR_results);
+title('SNR Heatmap');
+ylabel('Noise Amplitude');
 colorbar;
 
 % 绘制 MSE 热图
 subplot(3, 1, 2); % 第二行
-h2 = heatmap(channel_numbers, noise_amplitudes, MSE_results);
-h2.Title = 'MSE Heatmap';
-h2.YLabel = 'Noise Amplitude';
-h2.CellLabelColor = 'none';  % 禁用数字显示
+heatmap(channel_numbers, noise_amplitudes, MSE_results);
+title('MSE Heatmap');
+ylabel('Noise Amplitude');
 colorbar;
 
 % 绘制 NCC 热图
 subplot(3, 1, 3); % 第三行
-h3 = heatmap(channel_numbers, noise_amplitudes, NCC_results);
-h3.Title = 'NCC Heatmap';
-h3.YLabel = 'Noise Amplitude';
-h3.CellLabelColor = 'none';  % 禁用数字显示
+heatmap(channel_numbers, noise_amplitudes, NCC_results);
+title('NCC Heatmap');
+xlabel('Channel Counts');
+ylabel('Noise Amplitude');
 colorbar;
 
 % 找到噪声幅度为50时的最佳通道数
