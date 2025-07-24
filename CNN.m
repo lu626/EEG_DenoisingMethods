@@ -10,7 +10,7 @@ inputSize = size(data, 2);
 numSamples = size(data, 1);
 trainIdx = 1:round(numSamples * 0.8);
 valIdx = (round(numSamples * 0.8) + 1):round(numSamples * 0.95);
-testEvalIdx = (numSamples - 199):numSamples;  % ✅ 改为倒数200行用于评估
+testEvalIdx = (numSamples - 199):numSamples;  %  改为倒数200行用于评估
 testPlotIdx = 4514;  % 第4514行用于绘图
 
 trainData = data(trainIdx, :);
@@ -102,7 +102,7 @@ for i = 1:size(oriEval,1)
 end
 
 % 输出平均指标
-fprintf('\n【Test Set: Last 200 Rows Including Row 4514】\n');  % 这里也同步修改文本
+fprintf('\n【Test Set: Last 200 Rows Including Row 4514】\n');  
 fprintf('Avg SNR: %.4f dB\n', mean(SNR_list));
 fprintf('Avg MSE: %.4f\n', mean(MSE_list));
 fprintf('Avg NCC: %.4f\n', mean(NCC_list));
