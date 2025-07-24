@@ -1,113 +1,92 @@
-% 加载数据集
+%% 加载数据集
 load('Q:\APP\EEGdenoiseNet-master\EEGdenoiseNet-master\data\EEG_all_epochs.mat');
 data = EEG_all_epochs;
+[numSamples, signalLength] = size(data);  % 4514 x 512
 
-% 获取维度
-[numSamples, signalLength] = size(data); % 4514 x 512
-
-% 数据集划分
+% ========== 数据划分 ==========
 trainIdx = 1:round(numSamples * 0.8);
 valIdx = (round(numSamples * 0.8) + 1):round(numSamples * 0.95);
-testIdx = numSamples;  % 只取最后一行作为测试集
+testIdx = (numSamples - 199):numSamples;  %  最后200行
 
 trainData = data(trainIdx, :);
 valData = data(valIdx, :);
-testData = data(testIdx, :);  % 测试集仅为最后一行数据
+testData = data(testIdx, :);  % 200行 × 512列
 
-% 添加噪声
+% ========== 添加噪声 ==========
 noiseAmplitude = 50;
 trainNoisy = trainData + noiseAmplitude * randn(size(trainData));
-valNoisy = valData + noiseAmplitude * randn(size(valData));
-testNoisy = testData + noiseAmplitude * randn(size(testData));
+valNoisy   = valData   + noiseAmplitude * randn(size(valData));
+testNoisy  = testData  + noiseAmplitude * randn(size(testData));
 
-% 将数据重塑为 [height width channels samples] 格式
+% ========== 数据维度 reshape ==========
 train_noisy = reshape(trainNoisy', [signalLength, 1, 1, size(trainNoisy, 1)]);
-train_clean = reshape(trainData', [signalLength, 1, 1, size(trainData, 1)]);
-val_noisy = reshape(valNoisy', [signalLength, 1, 1, size(valNoisy, 1)]);
-val_clean = reshape(valData', [signalLength, 1, 1, size(valData, 1)]);
-test_noisy = reshape(testNoisy', [signalLength, 1, 1, size(testNoisy, 1)]);
-test_clean = reshape(testData', [signalLength, 1, 1, size(testData, 1)]);
+train_clean = reshape(trainData',   [signalLength, 1, 1, size(trainData, 1)]);
+val_noisy   = reshape(valNoisy',    [signalLength, 1, 1, size(valNoisy, 1)]);
+val_clean   = reshape(valData',     [signalLength, 1, 1, size(valData, 1)]);
+test_noisy  = reshape(testNoisy',   [signalLength, 1, 1, size(testNoisy, 1)]);
+test_clean  = reshape(testData',    [signalLength, 1, 1, size(testData, 1)]);
 
-% 定义网络结构
+% ========== EEGDiR-inspired 网络 ==========
 layers = [
     imageInputLayer([signalLength 1 1], 'Name', 'input')
-    
     convolution2dLayer([3 1], 64, 'Padding', 'same', 'Name', 'conv1')
-    batchNormalizationLayer('Name', 'bn1')
     reluLayer('Name', 'relu1')
-    
-    convolution2dLayer([3 1], 128, 'Padding', 'same', 'Name', 'conv2')
-    batchNormalizationLayer('Name', 'bn2')
+    batchNormalizationLayer('Name', 'bn1')
+    convolution2dLayer([3 1], 64, 'Padding', 'same', 'Name', 'conv2')
     reluLayer('Name', 'relu2')
-    
-    convolution2dLayer([3 1], 256, 'Padding', 'same', 'Name', 'conv3')
-    batchNormalizationLayer('Name', 'bn3')
+    batchNormalizationLayer('Name', 'bn2')
+    convolution2dLayer([3 1], 64, 'Padding', 'same', 'Name', 'conv3')
     reluLayer('Name', 'relu3')
-    
-    convolution2dLayer([3 1], 128, 'Padding', 'same', 'Name', 'conv4')
-    batchNormalizationLayer('Name', 'bn4')
+    batchNormalizationLayer('Name', 'bn3')
+    additionLayer(2, 'Name', 'add')
+    convolution2dLayer([3 1], 64, 'Padding', 'same', 'Name', 'conv4')
     reluLayer('Name', 'relu4')
-    
-    convolution2dLayer([3 1], 64, 'Padding', 'same', 'Name', 'conv5')
-    batchNormalizationLayer('Name', 'bn5')
-    reluLayer('Name', 'relu5')
-    
-    convolution2dLayer([3 1], 1, 'Padding', 'same', 'Name', 'conv6')
+    batchNormalizationLayer('Name', 'bn4')
+    convolution2dLayer([3 1], 1, 'Padding', 'same', 'Name', 'conv_out')
     regressionLayer('Name', 'output')
 ];
+lgraph = layerGraph(layers);
+lgraph = connectLayers(lgraph, 'bn1', 'add/in2');
 
-% 训练选项
+% ========== 训练设置 ==========
 options = trainingOptions('adam', ...
     'MaxEpochs', 50, ...
     'MiniBatchSize', 32, ...
     'InitialLearnRate', 0.001, ...
-    'LearnRateSchedule', 'piecewise', ...
-    'LearnRateDropFactor', 0.1, ...
-    'LearnRateDropPeriod', 20, ...
     'ValidationData', {val_noisy, val_clean}, ...
     'ValidationFrequency', 30, ...
     'ValidationPatience', 5, ...
     'Verbose', 1, ...
     'Plots', 'training-progress');
 
-% 训练网络
-net = trainNetwork(train_noisy, train_clean, layers, options);
+% ========== 网络训练 ==========
+net = trainNetwork(train_noisy, train_clean, lgraph, options);
 
-% 使用网络进行预测
-denoisedSignal = predict(net, test_noisy);
+% ========== 测试与评价 ==========
+denoised = predict(net, test_noisy);     % [512×1×1×200]
+denoised = squeeze(denoised)';           % [200×512]
+test_clean = squeeze(test_clean)';       % [200×512]
+test_noisy = squeeze(test_noisy)';       % [200×512]
 
-% 重塑数据回原始格式
-denoisedSignal = squeeze(denoisedSignal)';
-test_clean = squeeze(test_clean)';
-test_noisy = squeeze(test_noisy)';
-
-% 绘图展示结果
+%  绘图展示最后一条样本（即第4514行）
 figure;
-subplot(3,1,1);
-plot(test_clean(1,:));
-title('Original Clean Signal');
-ylabel('Amplitude');
-grid on;
+subplot(3,1,1); plot(test_clean(end,:)); title('Original Clean Signal (Row 4514)'); grid on;
+subplot(3,1,2); plot(test_noisy(end,:)); title('Noisy Signal'); grid on;
+subplot(3,1,3); plot(denoised(end,:));   title('Denoised Signal'); grid on;
+sgtitle('EEGDiR-based EEG Denoising Result (Row 4514)');
 
-subplot(3,1,2);
-plot(test_noisy(1,:));
-title('Noisy Signal');
-ylabel('Amplitude');
-grid on;
+% ========== 逐行计算评价指标 ==========
+SNRs = zeros(200,1);
+MSEs = zeros(200,1);
+NCCs = zeros(200,1);
+for i = 1:200
+    clean = test_clean(i,:);
+    den = denoised(i,:);
+    SNRs(i) = 10 * log10(sum(clean.^2) / sum((clean - den).^2));
+    MSEs(i) = mean((clean - den).^2);
+    NCCs(i) = sum(clean .* den) / sqrt(sum(clean.^2) * sum(den.^2));
+end
 
-subplot(3,1,3);
-plot(denoisedSignal(1,:));
-title('Denoised Signal');
-xlabel('Sample');
-ylabel('Amplitude');
-grid on;
-
-% 计算性能指标
-SNR = 10 * log10(sum(testData.^2, 2) ./ sum((testData - denoisedSignal).^2, 2));
-MSE = mean((testData - denoisedSignal).^2, 'all');
-NCC = sum(testData .* denoisedSignal, 'all') / sqrt(sum(testData.^2, 'all') * sum(denoisedSignal.^2, 'all'));
-
-% 输出性能指标
-fprintf('SNR: %.2f dB\n', mean(SNR));
-fprintf('MSE: %.5f\n', MSE);
-fprintf('NCC: %.5f\n', NCC);
+% ========== 输出平均结果 ==========
+fprintf('EEGDiR (Avg over last 200): SNR = %.2f dB, MSE = %.5f, NCC = %.5f\n', ...
+        mean(SNRs), mean(MSEs), mean(NCCs));
