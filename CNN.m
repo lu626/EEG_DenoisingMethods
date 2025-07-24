@@ -1,71 +1,66 @@
-% 加载数据集
+%% 加载数据集
 load('Q:\APP\EEGdenoiseNet-master\EEGdenoiseNet-master\data\EEG_all_epochs.mat');
 data = EEG_all_epochs;
 
 % 获取维度
 inputSize = size(data, 2);
-numChannels = 1;
 
-% 数据集划分
+
+% 数据划分
 numSamples = size(data, 1);
 trainIdx = 1:round(numSamples * 0.8);
 valIdx = (round(numSamples * 0.8) + 1):round(numSamples * 0.95);
-testIdx = (round(numSamples * 0.95) + 1):numSamples;
+testEvalIdx = (numSamples - 199):numSamples;  % ✅ 改为倒数200行用于评估
+testPlotIdx = 4514;  % 第4514行用于绘图
 
 trainData = data(trainIdx, :);
 valData = data(valIdx, :);
-testData = data(testIdx, :);
-
-% 选择第4514行数据进行测试
-testRowIdx = 4514;
-testData = data(testRowIdx, :);  % 只选择第4514行
+testEvalData = data(testEvalIdx, :);
+testPlotData = data(testPlotIdx, :);
 
 % 添加噪声
 noiseAmplitude = 50;
 trainNoisy = trainData + noiseAmplitude * randn(size(trainData));
 valNoisy = valData + noiseAmplitude * randn(size(valData));
-testNoisy = testData + noiseAmplitude * randn(size(testData));
+testEvalNoisy = testEvalData + noiseAmplitude * randn(size(testEvalData));
+testPlotNoisy = testPlotData + noiseAmplitude * randn(size(testPlotData));
 
-% 重要：正确重塑数据维度
-% 将数据重塑为 [height width channels samples] 格式
-train_noisy = permute(reshape(trainNoisy, [size(trainNoisy, 1), 1, inputSize, 1]), [3 2 4 1]);
-train_clean = permute(reshape(trainData, [size(trainData, 1), 1, inputSize, 1]), [3 2 4 1]);
+% 重塑数据为 [W, H, C, N]
+reshape4D = @(x) permute(reshape(x, [size(x,1), 1, inputSize, 1]), [3 2 4 1]);
+train_noisy = reshape4D(trainNoisy);
+train_clean = reshape4D(trainData);
+val_noisy = reshape4D(valNoisy);
+val_clean = reshape4D(valData);
+testEval_noisy = reshape4D(testEvalNoisy);
+testEval_clean = reshape4D(testEvalData);
+testPlot_noisy = reshape4D(testPlotNoisy);
+testPlot_clean = reshape4D(testPlotData);
 
-val_noisy = permute(reshape(valNoisy, [size(valNoisy, 1), 1, inputSize, 1]), [3 2 4 1]);
-val_clean = permute(reshape(valData, [size(valData, 1), 1, inputSize, 1]), [3 2 4 1]);
-
-test_noisy = permute(reshape(testNoisy, [size(testNoisy, 1), 1, inputSize, 1]), [3 2 4 1]);
-test_clean = permute(reshape(testData, [size(testData, 1), 1, inputSize, 1]), [3 2 4 1]);
-
-% 定义网络结构
+%% 定义网络结构
 layers = [
     imageInputLayer([inputSize 1 1])
 
-    % 第一个卷积层
-    convolution2dLayer([7 1], 64, 'Padding', 'same', 'WeightL2Factor', 0.01, 'WeightLearnRateFactor', 10, 'BiasLearnRateFactor', 10)
+    convolution2dLayer([7 1], 64, 'Padding', 'same')
     batchNormalizationLayer
     reluLayer
 
-    % 第二个卷积层
-    convolution2dLayer([7 1], 128, 'Padding', 'same', 'WeightL2Factor', 0.01, 'WeightLearnRateFactor', 10, 'BiasLearnRateFactor', 10)
+    convolution2dLayer([7 1], 128, 'Padding', 'same')
     batchNormalizationLayer
     reluLayer
 
-    % 第三个卷积层
-    convolution2dLayer([7 1], 64, 'Padding', 'same', 'WeightL2Factor', 0.01, 'WeightLearnRateFactor', 10, 'BiasLearnRateFactor', 10)
+    convolution2dLayer([7 1], 64, 'Padding', 'same')
     batchNormalizationLayer
     reluLayer
 
-    % 最后输出层
-    convolution2dLayer([5 1], 1, 'Padding', 'same', 'WeightL2Factor', 0.01, 'WeightLearnRateFactor', 10, 'BiasLearnRateFactor', 10)
+    convolution2dLayer([5 1], 1, 'Padding', 'same')
     regressionLayer
 ];
 
-% 训练选项
+%% 训练选项
 options = trainingOptions('adam', ...
-    'MaxEpochs', 30, ...  % 增加训练轮数
+    'MaxEpochs', 30, ...
     'MiniBatchSize', 64, ...
-    'InitialLearnRate', 0.0005, ...  % 降低学习率
+    'InitialLearnRate', 0.0005, ...
     'LearnRateSchedule', 'piecewise', ...
     'LearnRateDropFactor', 0.5, ...
     'LearnRateDropPeriod', 50, ...
@@ -74,35 +69,41 @@ options = trainingOptions('adam', ...
     'Plots', 'training-progress', ...
     'Verbose', false);
 
-% 训练网络
+%% 训练网络
 net = trainNetwork(train_noisy, train_clean, layers, options);
 
-% 使用网络进行预测
-denoisedSignal = predict(net, test_noisy);
+%% 使用网络预测 - 4514行用于绘图
+denoisedPlot = predict(net, testPlot_noisy);
+oriPlot = permute(testPlot_clean, [4 3 2 1]);
+noisyPlot = permute(testPlot_noisy, [4 3 2 1]);
+denoisedPlot = permute(denoisedPlot, [4 3 2 1]);
 
-% 将数据转换回原始维度用于绘图
-denoisedSignal = permute(denoisedSignal, [4 3 2 1]);
-originalSignal = permute(test_clean, [4 3 2 1]);
-noisySignal = permute(test_noisy, [4 3 2 1]);
-
-% 绘图
 figure;
-subplot(3, 1, 1);
-plot(squeeze(originalSignal(1, :)));
-title('Original Signal');
-subplot(3, 1, 2);
-plot(squeeze(noisySignal(1, :)));
-title('Noisy Signal');
-subplot(3, 1, 3);
-plot(squeeze(denoisedSignal(1, :)));
-title('Denoised Signal');
+subplot(3, 1, 1); plot(squeeze(oriPlot(1, :))); title('Original Signal');
+subplot(3, 1, 2); plot(squeeze(noisyPlot(1, :))); title('Noisy Signal');
+subplot(3, 1, 3); plot(squeeze(denoisedPlot(1, :))); title('Denoised Signal');
 
-% 计算性能指标
-SNR = 10 * log10(sum(originalSignal.^2, 2) ./ sum((originalSignal - denoisedSignal).^2, 2));
-MSE = mean((originalSignal - denoisedSignal).^2, 'all');
-NCC = sum(originalSignal .* denoisedSignal, 'all') / sqrt(sum(originalSignal.^2, 'all') * sum(denoisedSignal.^2, 'all'));
+%% 对倒数20行计算平均 SNR/MSE/NCC
+denoisedEval = predict(net, testEval_noisy);
+denoisedEval = permute(denoisedEval, [4 3 2 1]);
+oriEval = permute(testEval_clean, [4 3 2 1]);
 
-% 输出性能指标
-fprintf('SNR: %.5f\n', mean(SNR));
-fprintf('MSE: %.5f\n', MSE);
-fprintf('NCC: %.5f\n', NCC);
+% 初始化
+SNR_list = zeros(size(oriEval,1),1);
+MSE_list = zeros(size(oriEval,1),1);
+NCC_list = zeros(size(oriEval,1),1);
+
+for i = 1:size(oriEval,1)
+    sig = oriEval(i,:);
+    den = denoisedEval(i,:);
+    SNR_list(i) = 10 * log10(sum(sig.^2) / sum((sig - den).^2));
+    MSE_list(i) = mean((sig - den).^2);
+    NCC_list(i) = sum(sig .* den) / sqrt(sum(sig.^2) * sum(den.^2));
+end
+
+% 输出平均指标
+fprintf('\n【Test Set: Last 200 Rows Including Row 4514】\n');  % 这里也同步修改文本
+fprintf('Avg SNR: %.4f dB\n', mean(SNR_list));
+fprintf('Avg MSE: %.4f\n', mean(MSE_list));
+fprintf('Avg NCC: %.4f\n', mean(NCC_list));
+
