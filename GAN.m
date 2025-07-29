@@ -1,3 +1,5 @@
+tic;  % >>> 开始记录 Processing Time <<<
+
 %% 加载数据
 load('EEG_all_epochs.mat');
 data = EEG_all_epochs;
@@ -117,6 +119,23 @@ for epoch = 1:numEpochs
     end
 end
 
+%% 参数量统计（只统计 Generator）
+param_count = 0;
+for i = 1:size(generator.Learnables,1)
+    param_count = param_count + numel(generator.Learnables.Value{i});
+end
+param_count = param_count / 1e6;  % 单位：M
+
+%% Inference Time（对200个样本）
+inferTimes = zeros(1, 200);
+for i = 1:200
+    testNoisyNormDL = dlarray(testNoisyNorm(i, :)', 'CB');
+    tStart = tic;
+    forward(generator, testNoisyNormDL);
+    inferTimes(i) = toc(tStart);
+end
+avg_infer_time_ms = mean(inferTimes) * 1000;
+
 %% 测试与评估：使用最后200行测试集
 denoisedAll = zeros(size(testData));
 for i = 1:size(testData, 1)
@@ -147,3 +166,9 @@ plot(testNoisy(idx, :)); title('Noisy Signal'); ylabel('Amplitude'); grid on;
 subplot(3,1,3);
 plot(denoisedAll(idx, :)); title('Denoised Signal'); ylabel('Amplitude'); xlabel('Sample'); grid on;
 sgtitle('GAN-based EEG Denoising Result (Row 4514)');
+
+%% 输出模型指标信息
+total_time = toc;
+fprintf('Parameter (M): %.2f\n', param_count);
+fprintf('Inference Time (ms): %.2f\n', avg_infer_time_ms);
+fprintf('Processing Time (s): %.2f\n', total_time);
