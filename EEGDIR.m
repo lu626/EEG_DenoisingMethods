@@ -3,22 +3,22 @@ load('Q:\APP\EEGdenoiseNet-master\EEGdenoiseNet-master\data\EEG_all_epochs.mat')
 data = EEG_all_epochs;
 [numSamples, signalLength] = size(data);  % 4514 x 512
 
-% ========== 数据划分 ==========
+% 数据划分
 trainIdx = 1:round(numSamples * 0.8);
 valIdx = (round(numSamples * 0.8) + 1):round(numSamples * 0.95);
-testIdx = (numSamples - 199):numSamples;  %  最后200行
+testIdx = (numSamples - 199):numSamples;
 
 trainData = data(trainIdx, :);
 valData = data(valIdx, :);
-testData = data(testIdx, :);  % 200行 × 512列
+testData = data(testIdx, :);  % [200 x 512]
 
-% ========== 添加噪声 ==========
+% 添加噪声
 noiseAmplitude = 50;
 trainNoisy = trainData + noiseAmplitude * randn(size(trainData));
 valNoisy   = valData   + noiseAmplitude * randn(size(valData));
 testNoisy  = testData  + noiseAmplitude * randn(size(testData));
 
-% ========== 数据维度 reshape ==========
+% 数据 reshape 为 [512,1,1,N]
 train_noisy = reshape(trainNoisy', [signalLength, 1, 1, size(trainNoisy, 1)]);
 train_clean = reshape(trainData',   [signalLength, 1, 1, size(trainData, 1)]);
 val_noisy   = reshape(valNoisy',    [signalLength, 1, 1, size(valNoisy, 1)]);
@@ -26,7 +26,7 @@ val_clean   = reshape(valData',     [signalLength, 1, 1, size(valData, 1)]);
 test_noisy  = reshape(testNoisy',   [signalLength, 1, 1, size(testNoisy, 1)]);
 test_clean  = reshape(testData',    [signalLength, 1, 1, size(testData, 1)]);
 
-% ========== EEGDiR-inspired 网络 ==========
+%% 定义 EEGDiR-inspired 网络
 layers = [
     imageInputLayer([signalLength 1 1], 'Name', 'input')
     convolution2dLayer([3 1], 64, 'Padding', 'same', 'Name', 'conv1')
@@ -48,7 +48,7 @@ layers = [
 lgraph = layerGraph(layers);
 lgraph = connectLayers(lgraph, 'bn1', 'add/in2');
 
-% ========== 训练设置 ==========
+%% 训练设置
 options = trainingOptions('adam', ...
     'MaxEpochs', 50, ...
     'MiniBatchSize', 32, ...
@@ -59,23 +59,23 @@ options = trainingOptions('adam', ...
     'Verbose', 1, ...
     'Plots', 'training-progress');
 
-% ========== 网络训练 ==========
+%% 网络训练
 net = trainNetwork(train_noisy, train_clean, lgraph, options);
 
-% ========== 测试与评价 ==========
+%% 测试与评价
 denoised = predict(net, test_noisy);     % [512×1×1×200]
 denoised = squeeze(denoised)';           % [200×512]
 test_clean = squeeze(test_clean)';       % [200×512]
 test_noisy = squeeze(test_noisy)';       % [200×512]
 
-%  绘图展示最后一条样本（即第4514行）
+%% 绘图展示最后一条样本（即第4514行）
 figure;
 subplot(3,1,1); plot(test_clean(end,:)); title('Original Clean Signal (Row 4514)'); grid on;
 subplot(3,1,2); plot(test_noisy(end,:)); title('Noisy Signal'); grid on;
 subplot(3,1,3); plot(denoised(end,:));   title('Denoised Signal'); grid on;
 sgtitle('EEGDiR-based EEG Denoising Result (Row 4514)');
 
-% ========== 逐行计算评价指标 ==========
+%% 逐行计算评价指标（SNR, MSE, NCC）
 SNRs = zeros(200,1);
 MSEs = zeros(200,1);
 NCCs = zeros(200,1);
@@ -87,6 +87,10 @@ for i = 1:200
     NCCs(i) = sum(clean .* den) / sqrt(sum(clean.^2) * sum(den.^2));
 end
 
-% ========== 输出平均结果 ==========
-fprintf('EEGDiR (Avg over last 200): SNR = %.2f dB, MSE = %.5f, NCC = %.5f\n', ...
-        mean(SNRs), mean(MSEs), mean(NCCs));
+%% 输出平均值 ± 标准差
+SNR_avg = mean(SNRs);  SNR_std = std(SNRs);
+MSE_avg = mean(MSEs);  MSE_std = std(MSEs);
+NCC_avg = mean(NCCs);  NCC_std = std(NCCs);
+
+fprintf('EEGDiR [avg over last 200 rows] → SNR = %.2f ± %.2f dB, MSE = %.1f ± %.1f, NCC = %.3f ± %.3f\n', ...
+    SNR_avg, SNR_std, MSE_avg, MSE_std, NCC_avg, NCC_std);
