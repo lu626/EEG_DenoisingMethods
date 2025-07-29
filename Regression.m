@@ -95,6 +95,7 @@ colorbar;
 subplot(3, 1, 3); % 第三行
 heatmap(channel_numbers, noise_amplitudes, NCC_results);
 title('NCC Heatmap');
+xlabel('Channel Counts (RM)');
 ylabel('Noise Amplitude');
 colorbar;
 
@@ -156,3 +157,19 @@ title('Denoised Signal (Using Ridge Regression)');
 xlabel('Time');
 ylabel('Amplitude');
 grid on;
+
+% 参数量和处理时间统计（仅传统方法）
+param_count = length(b_ridge_best);  % RM参数量即回归系数个数
+
+% 重新执行一遍过程用于 timing
+tic;
+X_tmp = noisy_eeg_multichannel_best';
+y_tmp = eeg_data_multichannel_best(1, :)';
+b_tmp = (X_tmp' * X_tmp + lambda_best * eye(size(X_tmp,2))) \ (X_tmp' * y_tmp);
+den_tmp = (X_tmp * b_tmp)';
+dummySNR = 10 * log10(sum(y_tmp.^2) / sum((y_tmp' - den_tmp).^2)); % 触发运算
+processing_time = toc;
+
+% 输出参数量和处理耗时
+fprintf('RM Parameter Count: %d\n', param_count);
+fprintf('RM Processing Time: %.4f seconds\n', processing_time);
