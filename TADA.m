@@ -45,10 +45,10 @@ options = trainingOptions('adam', ...
 
 net = trainNetwork(train_noisy, train_clean, lgraph, options);
 
-%% ——— 测试部分（ 最后200行）———
+%% ——— 测试部分（✅ 最后200行）———
 numTest = 200;
 testData = data(end-numTest+1:end,:);
-testNoisy = testData + noiseAmplitude*randn(size(testData));
+testNoisy = testData + noiseAmplitude * randn(size(testData));
 
 SNR_list = zeros(1, numTest);
 MSE_list = zeros(1, numTest);
@@ -65,16 +65,25 @@ for i = 1:numTest
     NCC_list(i) = sum(clean_sample.*den')/sqrt(sum(clean_sample.^2)*sum(den'.^2));
 end
 
+%% ——— 输出最终指标（带标准差）———
 SNR_avg = mean(SNR_list);
-MSE_avg = mean(MSE_list);
-NCC_avg = mean(NCC_list);
+SNR_std = std(SNR_list);
 
-%% ——— 图像显示： 使用最后一行数据（第4514行）绘图 ———
+MSE_avg = mean(MSE_list);
+MSE_std = std(MSE_list);
+
+NCC_avg = mean(NCC_list);
+NCC_std = std(NCC_list);
+
+fprintf('TADA [avg over last 200 rows] → SNR = %.2f ± %.2f dB, MSE = %.1f ± %.1f, NCC = %.3f ± %.3f\n', ...
+    SNR_avg, SNR_std, MSE_avg, MSE_std, NCC_avg, NCC_std);
+
+%% ——— 图像显示：✅ 使用最后一行数据（第4514行）绘图 ———
 figure;
 subplot(3,1,1); plot(testData(end,:)); title('Original'); grid on;
 subplot(3,1,2); plot(testNoisy(end,:)); title('Noisy'); grid on;
-subplot(3,1,3); plot(squeeze(predict(net, reshape(testNoisy(end,:)',[512 1 1 1])))'); title('TADA Denoised'); grid on;
+subplot(3,1,3); 
+denoised4514 = predict(net, reshape(testNoisy(end,:)',[512 1 1 1]));
+plot(squeeze(denoised4514)); 
+title('TADA Denoised'); grid on;
 sgtitle('TADA-based EEG Denoising (Row 4514)');
-
-%% ——— 输出结果 ———
-fprintf('TADA [avg over last 200 rows] → SNR = %.2f dB, MSE = %.5f, NCC = %.5f\n', SNR_avg, MSE_avg, NCC_avg);
