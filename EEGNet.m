@@ -1,3 +1,5 @@
+tic;  % >>> 开始记录 Processing Time <<<
+
 %% 加载EEG数据集
 load('Q:\APP\EEGdenoiseNet-master\EEGdenoiseNet-master\data\EEG_all_epochs.mat');
 data = EEG_all_epochs;
@@ -19,9 +21,9 @@ testNoisy  = testData  + noiseAmplitude * randn(size(testData));
 % 数据重塑为 [512,1,1,N]
 train_noisy = reshape(trainNoisy', [signalLength, 1, 1, size(trainNoisy, 1)]);
 train_clean = reshape(trainData',  [signalLength, 1, 1, size(trainData, 1)]);
-val_noisy   = reshape(valNoisy',   [signalLength, 1, 1, size(valNoisy, 1)]);
+val_noisy   = reshape(valNoisy',   [signalLength, 1, 1, size(valData, 1)]);
 val_clean   = reshape(valData',    [signalLength, 1, 1, size(valData, 1)]);
-test_noisy  = reshape(testNoisy',  [signalLength, 1, 1, size(testNoisy, 1)]);
+test_noisy  = reshape(testNoisy',  [signalLength, 1, 1, size(testData, 1)]);
 test_clean  = reshape(testData',   [signalLength, 1, 1, size(testData, 1)]);
 
 %% 定义EEGNet网络架构
@@ -63,6 +65,28 @@ options = trainingOptions('adam', ...
 %% 训练网络
 net = trainNetwork(train_noisy, train_clean, layers, options);
 
+%% 参数量统计
+param_count = 0;
+for i = 1:numel(net.Layers)
+    if isprop(net.Layers(i), 'Weights') && ~isempty(net.Layers(i).Weights)
+        param_count = param_count + numel(net.Layers(i).Weights);
+    end
+    if isprop(net.Layers(i), 'Bias') && ~isempty(net.Layers(i).Bias)
+        param_count = param_count + numel(net.Layers(i).Bias);
+    end
+end
+param_count = param_count / 1e6;  % 单位：M
+
+%% Inference Time（对200个样本）
+inferTimes = zeros(1, 200);
+for i = 1:200
+    sample = reshape(testNoisy(i,:), [signalLength, 1, 1, 1]);
+    tStart = tic;
+    predict(net, sample);
+    inferTimes(i) = toc(tStart);
+end
+avg_infer_time_ms = mean(inferTimes) * 1000;
+
 %% 使用训练好的网络预测
 denoisedSignal = predict(net, test_noisy);         % [512×1×1×200]
 denoisedSignal = squeeze(denoisedSignal)';         % [200×512]
@@ -95,3 +119,9 @@ NCC_avg = mean(NCCs);  NCC_std = std(NCCs);
 
 fprintf('EEGNet [avg over last 200 rows] → SNR = %.2f ± %.2f dB, MSE = %.1f ± %.1f, NCC = %.3f ± %.3f\n', ...
     SNR_avg, SNR_std, MSE_avg, MSE_std, NCC_avg, NCC_std);
+
+%% 输出模型统计信息
+total_time = toc;
+fprintf('Parameter (M): %.2f\n', param_count);
+fprintf('Inference Time (ms): %.2f\n', avg_infer_time_ms);
+fprintf('Processing Time (s): %.2f\n', total_time);
