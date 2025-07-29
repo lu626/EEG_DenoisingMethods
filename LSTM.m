@@ -1,4 +1,6 @@
-%% 加载数据 
+tic;  % >>> 开始记录 Processing Time <<<
+
+%% 加载数据  
 load('Q:\APP\EEGdenoiseNet-master\EEGdenoiseNet-master\data\EEG_all_epochs.mat');
 data = EEG_all_epochs;
 inputSize = size(data, 2);
@@ -51,6 +53,27 @@ options = trainingOptions('adam', ...
 %% 训练网络
 net = trainNetwork(train_noisy, train_clean, layers, options);
 
+%% 参数量统计（兼容所有版本）
+param_count = 0;
+for i = 1:numel(net.Layers)
+    if isprop(net.Layers(i), 'Weights') && ~isempty(net.Layers(i).Weights)
+        param_count = param_count + numel(net.Layers(i).Weights);
+    end
+    if isprop(net.Layers(i), 'Bias') && ~isempty(net.Layers(i).Bias)
+        param_count = param_count + numel(net.Layers(i).Bias);
+    end
+end
+param_count = param_count / 1e6;  % 单位：M
+
+%% Inference Time 计算（200个样本）
+inferTimes = zeros(1, 200);
+for i = 1:200
+    tStart = tic;
+    predict(net, test_noisy{i});
+    inferTimes(i) = toc(tStart);
+end
+avg_infer_time_ms = mean(inferTimes) * 1000;
+
 %% 预测与反归一化
 denoisedAll = zeros(size(testData));
 for i = 1:length(test_noisy)
@@ -90,3 +113,9 @@ plot(noisyAll(end, :)); title('Noisy Signal'); ylabel('Amplitude'); grid on;
 subplot(3,1,3);
 plot(denoisedAll(end, :)); title('Denoised Signal'); ylabel('Amplitude'); xlabel('Sample'); grid on;
 sgtitle('LSTM-based EEG Denoising Result (Row 4514)');
+
+%% 输出模型统计信息
+total_time = toc;
+fprintf('Parameter (M): %.2f\n', param_count);
+fprintf('Inference Time (ms): %.2f\n', avg_infer_time_ms);
+fprintf('Processing Time (s): %.2f\n', total_time);
