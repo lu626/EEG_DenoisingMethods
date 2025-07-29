@@ -5,7 +5,7 @@ data = EEG_all_epochs;
 % 获取数据维度
 [numSamples, signalLength] = size(data);  % 4514 x 512
 
-%  使用最后200行数据作为测试集（包含第4514行）
+% 使用最后200行数据作为测试集（包含第4514行）
 testData = data(end-199:end, :);  % [200 x 512]
 trainData = data(1:end-200, :);   % [4314 x 512]
 valData = trainData;              % 验证集复用训练集
@@ -69,11 +69,12 @@ denoisedSignal = squeeze(denoisedSignal)';         % [200×512]
 test_clean     = squeeze(test_clean)';             % [200×512]
 test_noisy     = squeeze(test_noisy)';             % [200×512]
 
-%% 绘图展示第1条样本（仍然绘制第1条，不变）
+%% 绘图展示第1条样本（默认绘制第4514行）
 figure;
 subplot(3,1,1); plot(test_clean(end,:)); title('Original Clean Signal'); ylabel('Amplitude'); grid on;
 subplot(3,1,2); plot(test_noisy(end,:)); title('Noisy Signal'); ylabel('Amplitude'); grid on;
 subplot(3,1,3); plot(denoisedSignal(end,:)); title('Denoised Signal'); xlabel('Sample'); ylabel('Amplitude'); grid on;
+sgtitle('EEGNet-based EEG Denoising (Row 4514)');
 
 %% 逐条计算 SNR、MSE、NCC（共200条）
 SNRs = zeros(200,1);
@@ -87,6 +88,10 @@ for i = 1:200
     NCCs(i) = sum(clean .* den) / sqrt(sum(clean.^2) * sum(den.^2));
 end
 
-%% 输出平均指标
-fprintf('EEGNet (Avg over last 200): SNR = %.2f dB, MSE = %.5f, NCC = %.5f\n', ...
-        mean(SNRs), mean(MSEs), mean(NCCs));
+%% 输出平均值 ± 标准差
+SNR_avg = mean(SNRs);  SNR_std = std(SNRs);
+MSE_avg = mean(MSEs);  MSE_std = std(MSEs);
+NCC_avg = mean(NCCs);  NCC_std = std(NCCs);
+
+fprintf('EEGNet [avg over last 200 rows] → SNR = %.2f ± %.2f dB, MSE = %.1f ± %.1f, NCC = %.3f ± %.3f\n', ...
+    SNR_avg, SNR_std, MSE_avg, MSE_std, NCC_avg, NCC_std);
