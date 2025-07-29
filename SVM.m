@@ -2,8 +2,8 @@
 load('Q:\APP\EEGdenoiseNet-master\EEGdenoiseNet-master\data\EEG_all_epochs.mat');
 data = EEG_all_epochs;
 
-%  获取最后200行数据作为测试集（包含第4514行）
-testRows = (size(data,1)-199):size(data,1);  % 即4315到4514行
+% 获取最后200行数据作为测试集（4315~4514）
+testRows = (size(data,1)-199):size(data,1);
 testData = data(testRows, :);
 
 % 数据集划分
@@ -13,46 +13,58 @@ valData = trainData;  % 验证集可复用训练集
 % 添加噪声
 noiseAmplitude = 50;
 trainNoisy = trainData + noiseAmplitude * randn(size(trainData));
-valNoisy = valData + noiseAmplitude * randn(size(valData));
-testNoisy = testData + noiseAmplitude * randn(size(testData));
+valNoisy   = valData   + noiseAmplitude * randn(size(valData));
+testNoisy  = testData  + noiseAmplitude * randn(size(testData));
 
 % 转为双精度
-trainNoisy = double(trainNoisy);
-trainClean = double(trainData);
-testNoisy = double(testNoisy);
-testClean = double(testData);
+trainNoisy  = double(trainNoisy);
+trainClean  = double(trainData);
+testNoisy   = double(testNoisy);
+testClean   = double(testData);
 
-% 转置：每一列是一个样本（输入为列向量）
+% 转置：每一列是一个样本（列向量为样本）
 trainNoisy = trainNoisy';
 trainClean = trainClean';
-testNoisy = testNoisy';
-testClean = testClean';
+testNoisy  = testNoisy';
+testClean  = testClean';
 
-% 训练维度数 = 512
-numDimensions = size(trainClean, 1);
+% 每一维建立一个 SVM 模型
+numDimensions = size(trainClean, 1);  % 512
 SVMModels = cell(numDimensions, 1);
 
-% 训练每一维的 SVM 模型
 for dim = 1:numDimensions
     fprintf('Training SVM for dimension %d...\n', dim);
     SVMModels{dim} = fitrsvm(trainNoisy', trainClean(dim, :)', ...
         'KernelFunction', 'linear', 'Standardize', true);
 end
 
-% 对每一维进行预测，得到降噪后的信号
+% 逐维预测，重建去噪信号
 denoisedSignal = zeros(size(testClean));
 for dim = 1:numDimensions
     fprintf('Predicting with SVM for dimension %d...\n', dim);
     denoisedSignal(dim, :) = predict(SVMModels{dim}, testNoisy');
 end
 
-% 计算平均性能指标
-SNR = 10 * log10(sum(testClean.^2, 1) ./ sum((testClean - denoisedSignal).^2, 1));  % 每个样本一个SNR
-avgSNR = mean(SNR);
-MSE = mean((testClean - denoisedSignal).^2, 'all');
-NCC = sum(testClean .* denoisedSignal, 'all') / sqrt(sum(testClean.^2, 'all') * sum(denoisedSignal.^2, 'all'));
+% 转置回来，统一为 [200 x 512]
+testClean = testClean';
+denoisedSignal = denoisedSignal';
 
-% 输出性能指标
-fprintf('Average SNR over last 200 rows: %.5f dB\n', avgSNR);
-fprintf('Average MSE over last 200 rows: %.5f\n', MSE);
-fprintf('Average NCC over last 200 rows: %.5f\n', NCC);
+%% 计算性能指标（SNR、MSE、NCC）每行一个样本
+SNR_list = zeros(200, 1);
+MSE_list = zeros(200, 1);
+NCC_list = zeros(200, 1);
+for i = 1:200
+    clean = testClean(i, :);
+    den   = denoisedSignal(i, :);
+    SNR_list(i) = 10 * log10(sum(clean.^2) / sum((clean - den).^2));
+    MSE_list(i) = mean((clean - den).^2);
+    NCC_list(i) = sum(clean .* den) / sqrt(sum(clean.^2) * sum(den.^2));
+end
+
+% 输出平均值 ± 标准差
+SNR_avg = mean(SNR_list);  SNR_std = std(SNR_list);
+MSE_avg = mean(MSE_list);  MSE_std = std(MSE_list);
+NCC_avg = mean(NCC_list);  NCC_std = std(NCC_list);
+
+fprintf('SVM [avg over last 200 rows] → SNR = %.2f ± %.2f dB, MSE = %.1f ± %.1f, NCC = %.3f ± %.3f\n', ...
+    SNR_avg, SNR_std, MSE_avg, MSE_std, NCC_avg, NCC_std);
