@@ -1,3 +1,5 @@
+tic;  % >>> 开始记录 Processing Time <<<
+
 %% ——— 前处理保持不变 ———
 load('Q:\APP\EEGdenoiseNet-master\EEGdenoiseNet-master\data\EEG_all_epochs.mat'); 
 data = EEG_all_epochs;
@@ -45,10 +47,33 @@ options = trainingOptions('adam', ...
 
 net = trainNetwork(train_noisy, train_clean, lgraph, options);
 
+param_count = 0;
+for i = 1:numel(net.Layers)
+    if isprop(net.Layers(i), 'Weights') && ~isempty(net.Layers(i).Weights)
+        param_count = param_count + numel(net.Layers(i).Weights);
+    end
+    if isprop(net.Layers(i), 'Bias') && ~isempty(net.Layers(i).Bias)
+        param_count = param_count + numel(net.Layers(i).Bias);
+    end
+end
+param_count = param_count / 1e6;  % 单位：M
+
+
+%% ——— Inference Time：对200个样本前向传播测平均时间（ms）———
+numInfer = 200;
+inferTimes = zeros(1, numInfer);
+for i = 1:numInfer
+    sample = reshape(data(end-i+1,:)', [512 1 1 1]);
+    tStart = tic;
+    predict(net, sample);
+    inferTimes(i) = toc(tStart);
+end
+avg_infer_time_ms = mean(inferTimes) * 1000;
+
 %% ——— 测试部分（✅ 最后200行）———
 numTest = 200;
-testData = data(end-numTest+1:end,:);
-testNoisy = testData + noiseAmplitude * randn(size(testData));
+testData = double(data(end-numTest+1:end,:));  % ← 修复：确保为 double 类型
+testNoisy = testData + noiseAmplitude * randn(size(testData));  % ← 修复：确保维度一致
 
 SNR_list = zeros(1, numTest);
 MSE_list = zeros(1, numTest);
@@ -87,3 +112,9 @@ denoised4514 = predict(net, reshape(testNoisy(end,:)',[512 1 1 1]));
 plot(squeeze(denoised4514)); 
 title('TADA Denoised'); grid on;
 sgtitle('TADA-based EEG Denoising (Row 4514)');
+
+%% ——— 最终统计输出（参数量 + 推理时间 + 总耗时）———
+total_time = toc;
+fprintf('Parameter (M): %.2f\n', param_count);
+fprintf('Inference Time (ms): %.2f\n', avg_infer_time_ms);
+fprintf('Processing Time (s): %.2f\n', total_time);
