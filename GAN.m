@@ -8,7 +8,7 @@ maxTrainSamples = 1000;
 trainData = data(1:maxTrainSamples, :);
 valData = data(maxTrainSamples+1:maxTrainSamples+100, :);
 
-%  使用最后200行为测试集（包含第4514行）
+% 使用最后200行为测试集（包含第4514行）
 testRows = (size(data, 1) - 199):size(data, 1);
 testData = data(testRows, :);
 
@@ -57,7 +57,7 @@ discriminatorLayers = [
 ];
 discriminator = dlnetwork(discriminatorLayers);
 
-%% 损失函数
+%% 损失函数定义
 function [loss, gradientsGenerator] = generatorLoss(generator, discriminator, noisyData, cleanData)
     denoisedData = forward(generator, noisyData);
     mseLoss = mean((denoisedData - cleanData).^2, 'all');
@@ -117,7 +117,7 @@ for epoch = 1:numEpochs
     end
 end
 
-%%  测试与评估：使用最后200行测试集
+%% 测试与评估：使用最后200行测试集
 denoisedAll = zeros(size(testData));
 for i = 1:size(testData, 1)
     testNoisyNormDL = dlarray(testNoisyNorm(i, :)', 'CB');
@@ -125,17 +125,19 @@ for i = 1:size(testData, 1)
     denoisedAll(i, :) = denoisedNorm * dataStd + dataMean;
 end
 
-%  评估性能指标（全部200行）
+%% 评估性能指标（200行，带标准差）
 SNR = 10 * log10(sum(testData.^2, 2) ./ sum((testData - denoisedAll).^2, 2));
-MSE = mean((testData - denoisedAll).^2, 'all');
-NCC = sum(testData .* denoisedAll, 'all') / sqrt(sum(testData.^2, 'all') * sum(denoisedAll.^2, 'all'));
+MSE = mean((testData - denoisedAll).^2, 2);
+NCC = sum(testData .* denoisedAll, 2) ./ sqrt(sum(testData.^2, 2) .* sum(denoisedAll.^2, 2));
 
-fprintf('\n测试集（最后200行）性能指标：\n');
-fprintf('平均 SNR: %.2f dB\n', mean(SNR));
-fprintf('平均 MSE: %.6f\n', MSE);
-fprintf('平均 NCC: %.4f\n', NCC);
+SNR_avg = mean(SNR);  SNR_std = std(SNR);
+MSE_avg = mean(MSE);  MSE_std = std(MSE);
+NCC_avg = mean(NCC);  NCC_std = std(NCC);
 
-%%  绘图展示（默认绘制第4514行）
+fprintf('\nGAN [avg over last 200 rows] → SNR = %.2f ± %.2f dB, MSE = %.1f ± %.1f, NCC = %.3f ± %.3f\n', ...
+    SNR_avg, SNR_std, MSE_avg, MSE_std, NCC_avg, NCC_std);
+
+%% 绘图展示（第4514行）
 figure('Position', [100 100 800 600]);
 idx = size(testData, 1); % 即第4514行
 subplot(3,1,1);
