@@ -7,7 +7,7 @@ outputSize = inputSize;
 % 数据划分
 numTrainSamples = 4500;
 trainData = data(1:numTrainSamples, :);
-testData = data(end-199:end, :);  %  修改为最后200行测试（含第4514行）
+testData = data(end-199:end, :);  % 最后200行测试（含第4514行）
 
 % 数据归一化
 dataMean = mean(trainData, 'all');
@@ -18,13 +18,13 @@ testDataNorm = (testData - dataMean) / dataStd;
 % 添加噪声（归一化后幅度）
 noiseAmplitude = 50 / dataStd;
 trainNoisyNorm = trainDataNorm + noiseAmplitude * randn(size(trainDataNorm));
-testNoisyNorm = testDataNorm + noiseAmplitude * randn(size(testDataNorm));
+testNoisyNorm  = testDataNorm  + noiseAmplitude * randn(size(testDataNorm));
 
-% 转为 LSTM 格式（cell 数组，每个样本为列向量）
-train_noisy = cellfun(@(x) x', num2cell(trainNoisyNorm, 2), 'UniformOutput', false);
-train_clean = cellfun(@(x) x', num2cell(trainDataNorm, 2), 'UniformOutput', false);
-test_noisy = cellfun(@(x) x', num2cell(testNoisyNorm, 2), 'UniformOutput', false);
-test_clean = cellfun(@(x) x', num2cell(testDataNorm, 2), 'UniformOutput', false);
+% 转为 LSTM 输入格式（cell 数组，每个样本为列向量）
+train_noisy  = cellfun(@(x) x', num2cell(trainNoisyNorm, 2), 'UniformOutput', false);
+train_clean  = cellfun(@(x) x', num2cell(trainDataNorm, 2), 'UniformOutput', false);
+test_noisy   = cellfun(@(x) x', num2cell(testNoisyNorm,  2), 'UniformOutput', false);
+test_clean   = cellfun(@(x) x', num2cell(testDataNorm,   2), 'UniformOutput', false);
 
 %% 构建简化的 LSTM 网络
 layers = [
@@ -35,7 +35,7 @@ layers = [
     regressionLayer
 ];
 
-%% 优化的训练选项
+%% 训练选项
 options = trainingOptions('adam', ...
     'MaxEpochs', 40, ...
     'MiniBatchSize', 32, ...
@@ -59,19 +59,29 @@ for i = 1:length(test_noisy)
 end
 
 originalAll = testData;
-noisyAll = testNoisyNorm * dataStd + dataMean;
+noisyAll    = testNoisyNorm * dataStd + dataMean;
 
-%% 评估指标
-SNR = 10 * log10(sum(originalAll.^2, 2) ./ sum((originalAll - denoisedAll).^2, 2));
-MSE = mean((originalAll - denoisedAll).^2, 'all');
-NCC = sum(originalAll .* denoisedAll, 'all') / sqrt(sum(originalAll.^2, 'all') * sum(denoisedAll.^2, 'all'));
+%% 逐行评估性能指标
+SNR_list = zeros(200, 1);
+MSE_list = zeros(200, 1);
+NCC_list = zeros(200, 1);
+for i = 1:200
+    clean = originalAll(i, :);
+    den   = denoisedAll(i, :);
+    SNR_list(i) = 10 * log10(sum(clean.^2) / sum((clean - den).^2));
+    MSE_list(i) = mean((clean - den).^2);
+    NCC_list(i) = sum(clean .* den) / sqrt(sum(clean.^2) * sum(den.^2));
+end
 
-fprintf('\n测试集（最后200行）性能指标：\n');
-fprintf('平均 SNR: %.2f dB\n', mean(SNR));
-fprintf('平均 MSE: %.6f\n', MSE);
-fprintf('平均 NCC: %.4f\n', NCC);
+% 输出平均值 ± 标准差
+SNR_avg = mean(SNR_list);  SNR_std = std(SNR_list);
+MSE_avg = mean(MSE_list);  MSE_std = std(MSE_list);
+NCC_avg = mean(NCC_list);  NCC_std = std(NCC_list);
 
-%% 绘图（默认绘制最后一行即第4514行）
+fprintf('\nLSTM [avg over last 200 rows] → SNR = %.2f ± %.2f dB, MSE = %.1f ± %.1f, NCC = %.3f ± %.3f\n', ...
+    SNR_avg, SNR_std, MSE_avg, MSE_std, NCC_avg, NCC_std);
+
+%% 绘图（默认绘制第4514行）
 figure('Position', [100 100 800 600]);
 subplot(3,1,1);
 plot(originalAll(end, :)); title('Original Signal (Row 4514)'); ylabel('Amplitude'); grid on;
