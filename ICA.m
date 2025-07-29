@@ -1,179 +1,81 @@
-% 加载数据
+%% 启动计时
+tic;  % 开始总处理时间计时
+
+%% 加载数据
 load('Q:\APP\EEGdenoiseNet-master\EEGdenoiseNet-master\data\EEG_all_epochs.mat');
 
-% 定义噪声幅度和通道数量
-noise_amplitudes = 5:5:50;  % 噪声幅度从5到50，步长为5
-channel_numbers = [1, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];  % 通道数
+%% 参数设置
+noise_amplitude = 50;             % 噪声幅度
+best_channel_number = 300;        % 可手动设置或来自热图分析结果
+target_idx = 4514;                % 目标 EEG 行
 
-% 存储结果
-SNR_results = zeros(length(noise_amplitudes), length(channel_numbers));
-MSE_results = zeros(length(noise_amplitudes), length(channel_numbers));
-NCC_results = zeros(length(noise_amplitudes), length(channel_numbers));
-
-% 优化ICA参数
-max_iterations = 500;  % 限制最大迭代次数
-epsilon = 1e-3;        % 收敛阈值
-
-% 循环不同通道数量
-for c = 1:length(channel_numbers)
-    num_channels = channel_numbers(c);
-    
-    % 确保包含第4514行
-    if num_channels == 1
-        eeg_data_multichannel = EEG_all_epochs(4514, :);  % 只有1个通道时，选择第4514行
-    else
-        % 随机选择其他通道，但确保包含第4514行
-        available_indices = setdiff(1:size(EEG_all_epochs,1), 4514);
-        random_indices = available_indices(randperm(length(available_indices), num_channels-1));
-        eeg_data_multichannel = [EEG_all_epochs(4514, :); EEG_all_epochs(random_indices, :)];
-    end
-    
-    % 循环不同的噪声幅度
-    for i = 1:length(noise_amplitudes)
-        noise_amplitude = noise_amplitudes(i);
-        
-        % 添加噪声
-        noise = noise_amplitude * randn(size(eeg_data_multichannel));
-        noisy_eeg_multichannel = eeg_data_multichannel + noise;
-        
-        % ICA降噪
-        try
-            if num_channels > 1
-                % 使用优化后的ICA参数
-                [S, A, W] = fastica(noisy_eeg_multichannel', ...
-                    'approach', 'symm', ...
-                    'g', 'tanh', ...
-                    'maxNumIterations', max_iterations, ...
-                    'epsilon', epsilon, ...
-                    'verbose', 'off');
-                
-                % 重建信号
-                clean_eeg_multichannel = (W \ S)'; 
-            else
-                % 单通道情况
-                clean_eeg_multichannel = noisy_eeg_multichannel;
-            end
-            
-            % 获取第4514行对应的信号
-            original_signal = eeg_data_multichannel(1, :);
-            noisy_signal = noisy_eeg_multichannel(1, :);
-            denoised_signal = clean_eeg_multichannel(1, :);
-            
-            % 计算指标
-            noise_signal = noisy_signal - original_signal;
-            signal_power = sum(original_signal.^2) / length(original_signal);
-            noise_power = sum(noise_signal.^2) / length(noise_signal);
-            SNR = 10 * log10(signal_power / noise_power);
-            
-            MSE = mean((original_signal - denoised_signal).^2);
-            NCC = sum(original_signal .* denoised_signal) / ...
-                (sqrt(sum(original_signal.^2)) * sqrt(sum(denoised_signal.^2)));
-            
-            % 存储结果
-            SNR_results(i, c) = SNR;
-            MSE_results(i, c) = MSE;
-            NCC_results(i, c) = NCC;
-            
-        catch ME
-            fprintf('Error at channels=%d, noise=%d: %s\n', num_channels, noise_amplitude, ME.message);
-            % 出错时设置为NaN而不是继续
-            SNR_results(i, c) = NaN;
-            MSE_results(i, c) = NaN;
-            NCC_results(i, c) = NaN;
-        end
-    end
-end
-% 创建一个新的图形
-figure;
-
-% 绘制 SNR 热图
-subplot(3, 1, 1); % 第一行
-heatmap(channel_numbers, noise_amplitudes, SNR_results);
-title('SNR Heatmap');
-ylabel('Noise Amplitude');
-colorbar;
-
-% 绘制 MSE 热图
-subplot(3, 1, 2); % 第二行
-heatmap(channel_numbers, noise_amplitudes, MSE_results);
-title('MSE Heatmap');
-ylabel('Noise Amplitude');
-colorbar;
-
-% 绘制 NCC 热图
-subplot(3, 1, 3); % 第三行
-heatmap(channel_numbers, noise_amplitudes, NCC_results);
-title('NCC Heatmap');
-xlabel('Channel Counts');
-ylabel('Noise Amplitude');
-colorbar;
-
-% 找到噪声幅度为50时的最佳通道数
-[~, best_channel_idx] = max(SNR_results(end, :));
-best_channel_number = channel_numbers(best_channel_idx);
-fprintf('Best channel number when noise amplitude is 50: %d\n', best_channel_number);
-
-% 使用最佳通道数进行最终测试
+%% 构造数据（确保包含目标行）
 if best_channel_number == 1
-    eeg_data_multichannel_best = EEG_all_epochs(4514, :);
+    eeg_data_multichannel = EEG_all_epochs(target_idx, :);
 else
-    available_indices = setdiff(1:size(EEG_all_epochs,1), 4514);
-    random_indices = available_indices(randperm(length(available_indices), best_channel_number-1));
-    eeg_data_multichannel_best = [EEG_all_epochs(4514, :); EEG_all_epochs(random_indices, :)];
+    available_indices = setdiff(1:size(EEG_all_epochs,1), target_idx);
+    rand_idx = randperm(length(available_indices), best_channel_number - 1);
+    eeg_data_multichannel = [EEG_all_epochs(target_idx, :); EEG_all_epochs(available_indices(rand_idx), :)];
 end
 
-% 添加噪声进行最终测试
-noise_amplitude = 50;
-noise_best = noise_amplitude * randn(size(eeg_data_multichannel_best));
-noisy_eeg_multichannel_best = eeg_data_multichannel_best + noise_best;
+%% 添加噪声
+rng(0);  % 固定随机种子
+noise = noise_amplitude * randn(size(eeg_data_multichannel));
+noisy_data = eeg_data_multichannel + noise;
 
-% 最终ICA降噪
+%% ICA 降噪
 if best_channel_number > 1
-    [S_best, ~, W_best] = fastica(noisy_eeg_multichannel_best', ...
+    [S, A, W] = fastica(noisy_data', ...
         'approach', 'symm', ...
         'g', 'tanh', ...
-        'maxNumIterations', max_iterations, ...
-        'epsilon', epsilon, ...
-        'verbose', 'off');
-    clean_eeg_multichannel_best = (W_best \ S_best)'; 
+        'maxNumIterations', 500, ...
+        'epsilon', 1e-3);
+    clean_data = (A * S)';  % 正确的信号重构方式
 else
-    clean_eeg_multichannel_best = noisy_eeg_multichannel_best;
+    clean_data = noisy_data;
 end
 
-% 绘制最终结果
+%% 提取目标信号
+original_signal = eeg_data_multichannel(1, :);
+noisy_signal = noisy_data(1, :);
+denoised_signal = clean_data(1, :);
+
+%% 计算指标
+signal_power = sum(original_signal.^2) / length(original_signal);
+noise_power = sum((noisy_signal - original_signal).^2) / length(original_signal);
+SNR = 10 * log10(signal_power / noise_power);
+MSE = mean((original_signal - denoised_signal).^2);
+NCC = sum((original_signal - mean(original_signal)) .* (denoised_signal - mean(denoised_signal))) / ...
+    sqrt(sum((original_signal - mean(original_signal)).^2) * sum((denoised_signal - mean(denoised_signal)).^2));
+
+%% 停止计时
+processing_time = toc;
+
+%% 输出指标
+fprintf('\nFinal Results (ICA with %d channels, Amp=%d):\n', best_channel_number, noise_amplitude);
+fprintf('SNR: %.4f dB\n', SNR);
+fprintf('MSE: %.4f\n', MSE);
+fprintf('NCC: %.4f\n', NCC);
+
+% 输出参数量（ICA为非深度模型，无可训练参数）
+fprintf('ICA Parameter Count: N/A (non-trainable method)\n');
+fprintf('ICA Processing Time: %.4f seconds\n', processing_time);
+
+%% 绘图
 figure('Position', [100, 100, 800, 600]);
 
 subplot(3,1,1);
-plot(eeg_data_multichannel_best(1,:));
+plot(original_signal);
 title('Original Signal (Row 4514)');
 ylabel('Amplitude');
 
 subplot(3,1,2);
-plot(noisy_eeg_multichannel_best(1,:));
-title(['Noisy Signal (Amplitude: 50, Channels: ' num2str(best_channel_number) ')']);
+plot(noisy_signal);
+title(sprintf('Noisy Signal (Amp=%d, Channels=%d)', noise_amplitude, best_channel_number));
 ylabel('Amplitude');
 
 subplot(3,1,3);
-plot(clean_eeg_multichannel_best(1,:));
+plot(denoised_signal);
 title('ICA Denoised Signal');
 xlabel('Time Points');
 ylabel('Amplitude');
-
-% 计算并显示最终结果
-original_signal_best = eeg_data_multichannel_best(1, :);
-noisy_signal_best = noisy_eeg_multichannel_best(1, :);
-denoised_signal_best = clean_eeg_multichannel_best(1, :);
-
-noise_signal_best = noisy_signal_best - original_signal_best;
-signal_power_best = sum(original_signal_best.^2) / length(original_signal_best);
-noise_power_best = sum(noise_signal_best.^2) / length(noise_signal_best);
-SNR_best = 10 * log10(signal_power_best / noise_power_best);
-
-MSE_best = mean((original_signal_best - denoised_signal_best).^2);
-NCC_best = sum(original_signal_best .* denoised_signal_best) / ...
-    (sqrt(sum(original_signal_best.^2)) * sqrt(sum(denoised_signal_best.^2)));
-
-fprintf('\nFinal Results with Best Channel Configuration:\n');
-fprintf('SNR: %.4f dB\n', SNR_best);
-fprintf('MSE: %.4f\n', MSE_best);
-fprintf('NCC: %.4f\n', NCC_best);
