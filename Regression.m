@@ -1,6 +1,6 @@
 % 加载数据
 load('Q:\APP\EEGdenoiseNet-master\EEGdenoiseNet-master\data\EEG_all_epochs.mat');
-
+tic;
 % 定义噪声幅度的范围
 noise_amplitudes = 5:5:50; % 从5到50的步长为5
 
@@ -162,7 +162,7 @@ grid on;
 param_count = length(b_ridge_best);  % RM参数量即回归系数个数
 
 % 重新执行一遍过程用于 timing
-tic;
+
 X_tmp = noisy_eeg_multichannel_best';
 y_tmp = eeg_data_multichannel_best(1, :)';
 b_tmp = (X_tmp' * X_tmp + lambda_best * eye(size(X_tmp,2))) \ (X_tmp' * y_tmp);
