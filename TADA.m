@@ -70,7 +70,7 @@ for i = 1:numInfer
 end
 avg_infer_time_ms = mean(inferTimes) * 1000;
 
-%% ——— 测试部分（✅ 最后200行）———
+%% ——— 测试部分（ 最后200行）———
 numTest = 200;
 testData = double(data(end-numTest+1:end,:));  % ← 修复：确保为 double 类型
 testNoisy = testData + noiseAmplitude * randn(size(testData));  % ← 修复：确保维度一致
@@ -103,7 +103,7 @@ NCC_std = std(NCC_list);
 fprintf('TADA [avg over last 200 rows] → SNR = %.2f ± %.2f dB, MSE = %.1f ± %.1f, NCC = %.3f ± %.3f\n', ...
     SNR_avg, SNR_std, MSE_avg, MSE_std, NCC_avg, NCC_std);
 
-%% ——— 图像显示：✅ 使用最后一行数据（第4514行）绘图 ———
+%% ——— 图像显示：使用最后一行数据（第4514行）绘图 ———
 figure;
 subplot(3,1,1); plot(testData(end,:)); title('Original'); grid on;
 subplot(3,1,2); plot(testNoisy(end,:)); title('Noisy'); grid on;
