@@ -2,6 +2,7 @@
 load('Q:\APP\EEGdenoiseNet-master\EEGdenoiseNet-master\data\EEG_all_epochs.mat');
 % 选择第4514行的数据（假设EEG数据集是一个4514×512的矩阵）
 original_signal = EEG_all_epochs(4514, :);
+tic;  % 开始计时
 
 % 设置噪声幅度为50
 noise_amplitude = 50;
@@ -90,3 +91,9 @@ plot(estimated_signal);
 ylabel('Filtering');
 
 
+% 参数量（传统方法，设为 0）与处理时间
+param_count = 0;
+processing_time = toc;
+
+fprintf('Parameter Count: %d\n', param_count);
+fprintf('Processing Time: %.4f seconds\n', processing_time);
