@@ -1,4 +1,4 @@
-%% 加载数据集
+%% 加载数据集 
 load('Q:\APP\EEGdenoiseNet-master\EEGdenoiseNet-master\data\EEG_all_epochs.mat');
 data = EEG_all_epochs;
 
@@ -13,7 +13,7 @@ valIdx = (round(numSamples * 0.8) + 1):round(numSamples * 0.95);
 
 trainData = data(trainIdx, :);
 valData = data(valIdx, :);
-testData = data(end-199:end, :);  %  改为最后200行作为测试集
+testData = data(end-199:end, :);  %  最后200行作为测试集
 
 % 添加噪声
 noiseAmplitude = 50;
@@ -80,13 +80,14 @@ denoisedSignal = permute(denoisedSignal, [4 3 2 1]);  % [200 x 512]
 originalSignal = permute(test_clean,     [4 3 2 1]);
 noisySignal    = permute(test_noisy,     [4 3 2 1]);
 
-%  保留绘制最后一条（即第200条）测试样本
+%% 绘图（第4514行，即最后一行测试样本）
 figure;
-subplot(3,1,1); plot(squeeze(originalSignal(end,:))); title('Original Signal');
-subplot(3,1,2); plot(squeeze(noisySignal(end,:)));    title('Noisy Signal');
-subplot(3,1,3); plot(squeeze(denoisedSignal(end,:))); title('Denoised Signal');
+subplot(3,1,1); plot(squeeze(originalSignal(end,:))); title('Original Signal'); grid on;
+subplot(3,1,2); plot(squeeze(noisySignal(end,:)));    title('Noisy Signal'); grid on;
+subplot(3,1,3); plot(squeeze(denoisedSignal(end,:))); title('Denoised Signal'); grid on;
+sgtitle('U-Net-based EEG Denoising (Row 4514)');
 
-%  修改循环：计算性能指标（对200条）
+%% 计算性能指标（200条）
 SNRs = zeros(200,1);
 MSEs = zeros(200,1);
 NCCs = zeros(200,1);
@@ -98,6 +99,10 @@ for i = 1:200
     NCCs(i) = sum(clean .* den) / sqrt(sum(clean.^2) * sum(den.^2));
 end
 
-% 输出平均指标
-fprintf('U-Net (Avg over last 200): SNR = %.2f dB, MSE = %.5f, NCC = %.5f\n', ...
-        mean(SNRs), mean(MSEs), mean(NCCs));
+%% 输出平均值 ± 标准差
+SNR_avg = mean(SNRs);  SNR_std = std(SNRs);
+MSE_avg = mean(MSEs);  MSE_std = std(MSEs);
+NCC_avg = mean(NCCs);  NCC_std = std(NCCs);
+
+fprintf('U-Net [avg over last 200 rows] → SNR = %.2f ± %.2f dB, MSE = %.1f ± %.1f, NCC = %.3f ± %.3f\n', ...
+    SNR_avg, SNR_std, MSE_avg, MSE_std, NCC_avg, NCC_std);
