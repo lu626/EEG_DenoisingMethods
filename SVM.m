@@ -1,3 +1,5 @@
+tic;  % >>> 记录 Processing Time <<<
+
 %% 加载数据集
 load('Q:\APP\EEGdenoiseNet-master\EEGdenoiseNet-master\data\EEG_all_epochs.mat');
 data = EEG_all_epochs;
@@ -38,6 +40,18 @@ for dim = 1:numDimensions
         'KernelFunction', 'linear', 'Standardize', true);
 end
 
+%% Inference Time 计算（200个样本）
+numSamples = size(testNoisy, 2);  % 200
+inferTimes = zeros(1, numSamples);
+for i = 1:numSamples
+    tStart = tic;
+    for dim = 1:numDimensions
+        predict(SVMModels{dim}, testNoisy(:, i)');
+    end
+    inferTimes(i) = toc(tStart);
+end
+avg_infer_time_ms = mean(inferTimes) * 1000;
+
 % 逐维预测，重建去噪信号
 denoisedSignal = zeros(size(testClean));
 for dim = 1:numDimensions
@@ -68,3 +82,9 @@ NCC_avg = mean(NCC_list);  NCC_std = std(NCC_list);
 
 fprintf('SVM [avg over last 200 rows] → SNR = %.2f ± %.2f dB, MSE = %.1f ± %.1f, NCC = %.3f ± %.3f\n', ...
     SNR_avg, SNR_std, MSE_avg, MSE_std, NCC_avg, NCC_std);
+
+%% 最终统计输出（SVM无参数量）
+total_time = toc;
+fprintf('Parameter (M): —— (N/A for SVM)\n');
+fprintf('Inference Time (ms): %.2f\n', avg_infer_time_ms);
+fprintf('Processing Time (s): %.2f\n', total_time);
