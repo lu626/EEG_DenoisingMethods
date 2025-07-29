@@ -1,5 +1,6 @@
 % 加载数据
 load('Q:\APP\EEGdenoiseNet-master\EEGdenoiseNet-master\data\EEG_all_epochs.mat');
+tic;  % 开始统计 processing time
 
 % 定义参数
 noise_amplitudes = 5:5:50;  % 噪声幅度范围
@@ -173,3 +174,9 @@ fprintf('SNR after EMD: %.4f dB\n', SNR_best);
 fprintf('MSE after EMD: %.4f\n', MSE_best);
 fprintf('NCC after EMD: %.4f\n', ncc_best);
 
+% 输出参数量与运行时间
+param_count = 0;  % EMD 为传统方法，无可训练参数
+processing_time = toc;
+
+fprintf('Parameter Count: %d\n', param_count);
+fprintf('Processing Time: %.4f seconds\n', processing_time);
