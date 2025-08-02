@@ -49,8 +49,8 @@ end
 
 % --- 绘制热图 ---
 figure;
-subplot(3, 1, 1); heatmap(channel_numbers, noise_amplitudes, SNR_results); title('SNR Heatmap'); ylabel('Noise Amplitude');
-subplot(3, 1, 2); heatmap(channel_numbers, noise_amplitudes, MSE_results); title('MSE Heatmap'); ylabel('Noise Amplitude');
+subplot(3, 1, 1); heatmap(channel_numbers, noise_amplitudes, SNR_results); title('SNR Heatmap'); xlabel('Channel Counts (PCA)');ylabel('Noise Amplitude');
+subplot(3, 1, 2); heatmap(channel_numbers, noise_amplitudes, MSE_results); title('MSE Heatmap'); xlabel('Channel Counts (PCA)');ylabel('Noise Amplitude');
 subplot(3, 1, 3); heatmap(channel_numbers, noise_amplitudes, NCC_results); title('NCC Heatmap'); xlabel('Channel Counts (PCA)'); ylabel('Noise Amplitude');
 
 % --- 找出SNR最佳通道数（A=50） ---
