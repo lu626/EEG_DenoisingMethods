@@ -81,6 +81,7 @@ figure;
 subplot(3, 1, 1); % 第一行
 heatmap(channel_numbers, noise_amplitudes, SNR_results);
 title('SNR Heatmap');
+xlabel('Channel Counts (RM)');
 ylabel('Noise Amplitude');
 colorbar;
 
@@ -88,6 +89,7 @@ colorbar;
 subplot(3, 1, 2); % 第二行
 heatmap(channel_numbers, noise_amplitudes, MSE_results);
 title('MSE Heatmap');
+xlabel('Channel Counts (RM)');
 ylabel('Noise Amplitude');
 colorbar;
 
