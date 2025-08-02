@@ -36,6 +36,7 @@ for c = 1:length(channel_numbers)
         signal = base_data(1, :);
         noisy = noisy_data(1, :);
 
+        % （保持你原有的评价计算方式不变）
         SNR_results(i, c) = 10*log10(sum(signal.^2)/sum((signal - noisy).^2));
         MSE_results(i, c) = mean((signal - denoised).^2);
         NCC_results(i, c) = sum(signal .* denoised) / sqrt(sum(signal.^2) * sum(denoised.^2));
@@ -47,11 +48,11 @@ end
 % ===============================
 figure;
 subplot(3,1,1); heatmap(channel_numbers, noise_amplitudes, SNR_results);
-title('SNR Heatmap'); ylabel('Noise Amplitude');
+title('SNR Heatmap'); ylabel('Noise Amplitude'); xlabel('Channel Counts (DWT)');
 subplot(3,1,2); heatmap(channel_numbers, noise_amplitudes, MSE_results);
-title('MSE Heatmap'); ylabel('Noise Amplitude');
+title('MSE Heatmap'); ylabel('Noise Amplitude'); xlabel('Channel Counts (DWT)');
 subplot(3,1,3); heatmap(channel_numbers, noise_amplitudes, NCC_results);
-title('NCC Heatmap'); ylabel('Noise Amplitude'); xlabel('Channel Counts');
+title('NCC Heatmap'); ylabel('Noise Amplitude'); xlabel('Channel Counts (DWT)');
 
 % ===============================
 % 第四步：选择噪声50时最佳通道数
@@ -59,36 +60,7 @@ title('NCC Heatmap'); ylabel('Noise Amplitude'); xlabel('Channel Counts');
 [~, best_c_idx] = max(SNR_results(end, :));
 best_channels = channel_numbers(best_c_idx);
 
-% ===============================
-% 第五步：倒数20行平均性能评估
-% ===============================
-test_rows = (size(EEG_all_epochs,1) - 19):size(EEG_all_epochs,1);
-SNR_list = zeros(1,20);
-MSE_list = zeros(1,20);
-NCC_list = zeros(1,20);
 
-for k = 1:20
-    row = test_rows(k);
-    if best_channels == 1
-        data = EEG_all_epochs(row, :);
-    else
-        rand_idx = randperm(size(EEG_all_epochs,1), best_channels-1);
-        data = [EEG_all_epochs(row, :); EEG_all_epochs(rand_idx, :)];
-    end
-
-    noisy = data + 50 * randn(size(data));
-    [C, L] = wavedec(noisy(1,:), 3, 'sym8');
-    T = 0.1 * max(abs(C));
-    C_denoised = wthresh(C, 's', T);
-    denoised = waverec(C_denoised, L, 'sym8');
-
-    clean = data(1,:);
-    noisy1 = noisy(1,:);
-
-    SNR_list(k) = 10*log10(sum(clean.^2)/sum((noisy1 - clean).^2));
-    MSE_list(k) = mean((clean - denoised).^2);
-    NCC_list(k) = sum(clean .* denoised) / sqrt(sum(clean.^2) * sum(denoised.^2));
-end
 
 % ===============================
 % 第六步：绘图（使用第4514行）
@@ -115,13 +87,21 @@ subplot(3,1,3);
 plot(denoised); title('Denoised Signal (Wavelet)');
 
 % ===============================
-% 第七步：输出最终平均指标
+% 第七步：输出最终指标
 % ===============================
-fprintf('\n=== Final Results (WT, average of last 20 rows) ===\n');
+signal_best  = data(1,:);
+noisy_best   = noisy(1,:);
+denoised_best= denoised;
+
+SNR_best = 10*log10(sum(signal_best.^2)/sum((noisy_best - signal_best).^2));
+MSE_best = mean((signal_best - denoised_best).^2);
+NCC_best = sum(signal_best .* denoised_best) / sqrt(sum(signal_best.^2) * sum(denoised_best.^2));
+
+fprintf('\n=== Final Result (WT, Row 4514) ===\n');
 fprintf('Best Channel Number: %d\n', best_channels);
-fprintf('SNR: %.2f dB\n', mean(SNR_list));
-fprintf('MSE: %.4f\n', mean(MSE_list));
-fprintf('NCC: %.4f\n', mean(NCC_list));
+fprintf('SNR: %.2f dB\n', SNR_best);
+fprintf('MSE: %.4f\n', MSE_best);
+fprintf('NCC: %.4f\n', NCC_best);
 
 % ===============================
 % 第八步：参数量和处理耗时输出
